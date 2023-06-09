@@ -1,5 +1,5 @@
 # Android Sdk Scraper 
-`Android Thirdpart sdk scraper` 用来爬取仓库的第三方sdk信息。这个灵感源于[LibScout](https://github.com/reddr/LibScout)内的脚本下载。目的是提取`Android thirdpart sdk`的特征用于标识第三方sdk信息,目前这个仓库主要爬取以下仓库
+`Android Thirdpart sdk scraper` 用来爬取仓库的第三方sdk信息。这个使用go重写了[LibScout](https://github.com/reddr/LibScout)内的脚本下载。目的是提取`Android thirdpart sdk`的特征用于标识第三方sdk信息,目前这个仓库主要爬取以下仓库，可以同时支持10个并发下载
 
 * maven
 * google

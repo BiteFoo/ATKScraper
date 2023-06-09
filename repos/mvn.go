@@ -54,23 +54,26 @@ type RespParams struct {
 
 // maven updater
 
-func NewMvn() *Repo {
+// func NewMvn() *Repo {
 
-	libs := LoadLibraySpec("mvn-central")
+// 	libs := LoadLibraySpec("mvn-central")
 
-	client := download.NewDownloader()
-	return &Repo{
-		Repos:   libs,
-		BaseUrl: "http://search.maven.org/solrsearch/select?q=g:%22#groupId%22+AND+a:%22#artefactId%22&rows=100&core=gav",
-		Client:  client,
-	}
-}
+// 	client := download.NewDownloader()
+// 	return &Repo{
+// 		Repos:   libs,
+// 		BaseUrl: "http://search.maven.org/solrsearch/select?q=g:%22#groupId%22+AND+a:%22#artefactId%22&rows=100&core=gav",
+// 		Client:  client,
+// 	}
+// }
+
+const MVNBASE_URL = "http://search.maven.org/solrsearch/select?q=g:%22#groupId%22+AND+a:%22#artefactId%22&rows=100&core=gav"
 
 // 读取指定的libray-specs数据
 func LoadLibraySpec(name string) *RepoLibrary {
 	//加载出指定的lib
 	libPath := utils.GenLibSpecPath(name)
 	if !utils.IsFile(libPath) {
+		log.Println("当前文件不存在 ", libPath)
 		return nil
 	}
 	var repoLibs RepoLibrary
@@ -85,18 +88,20 @@ func LoadLibraySpec(name string) *RepoLibrary {
 
 }
 
-func formatString(url string, repo RepoInfo) string {
+func replace(url string, repo RepoInfo) string {
 
 	url = strings.Replace(url, "#groupId", repo.GroupId, -1)
 	url = strings.Replace(url, "#artefactId", repo.ArteFaceId, -1)
 	return url
 }
 
-func GetReposInfo(r *Repo) error {
+// 下载mvn仓库内的第三方sdk
+func DownloadMvnATK(baseUrl string, client *download.DownloadClient, library RepoLibrary) error {
 
-	for _, repo := range r.Repos.Libraries {
+	for _, repo := range library.Libraries {
 
-		url := formatString(r.BaseUrl, repo)
+		//对于是maven类型的
+		url := replace(baseUrl, repo)
 		// log.Printf("Fetching repos[%d] url = %v\n", i, url)
 		result, err := http.Get(url)
 		if err != nil {
@@ -109,8 +114,7 @@ func GetReposInfo(r *Repo) error {
 			log.Printf("decode response error; %v\n", er)
 			continue
 		}
-		downloadArtefaceId(r, repo, resp)
-		// break
+		downloadArtefaceId(client, repo, resp)
 
 	}
 	// close(r.Client.DownloadChans) //不要开这个，否则会有协程没有下载完成？
@@ -125,28 +129,23 @@ func parseTime(sec int64) string {
 }
 
 // 下载 获取响应结果保存结果
-func downloadArtefaceId(r *Repo, repo RepoInfo, resp MvnRepo) error {
+func downloadArtefaceId(client *download.DownloadClient, repo RepoInfo, resp MvnRepo) error {
 
 	artifacedIdR := strings.Replace(repo.ArteFaceId, ".", "/", -1)
 	groupIdR := strings.Replace(repo.GroupId, ".", "/", -1)
-
+	//这里是下载maven类的
 	baseUrl := "https://search.maven.org/remotecontent?filepath="
 
 	for _, respons := range resp.Response.Docs {
 		//  response.P == response.fileType
 		fileNmae := fmt.Sprintf("%s-%v.%v", artifacedIdR, respons.Version, respons.P) //artifacedIdR + "-" + ".version" + ".filetyp"
 		downloadURL := baseUrl + groupIdR + "/" + artifacedIdR + "/" + respons.Version + "/" + fileNmae
-		// log.Println("[", i, "]fileName = ", fileNmae, " DownloadURL = ", downloadURL)
-		// break
 		// 这里我们就能保证路径创建为 /download/to/category/libname/version
 		root := utils.MakeSurePathExists(repo.Category, repo.Name)
 		if root == "" {
 			return fmt.Errorf("无法创建目录")
 		}
-		//
-
 		//我们在这里将结果保存在chan里提供给别的goroutine下载
-
 		var info = download.DownloadInfo{
 			Category:    repo.Category,
 			DownloadURL: downloadURL,
@@ -158,7 +157,7 @@ func downloadArtefaceId(r *Repo, repo RepoInfo, resp MvnRepo) error {
 			ReleaseDate: parseTime(respons.Timestamp),
 		}
 		// 提供给download执行
-		r.Client.Submit(info)
+		client.Submit(info)
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/xml"
 	"io/fs"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/BiteFoo/android_sdk_scraper/download"
 	"github.com/BiteFoo/android_sdk_scraper/repos"
 	"github.com/BiteFoo/android_sdk_scraper/utils"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadLibrary(t *testing.T) {
@@ -85,4 +87,26 @@ func TestXml(t *testing.T) {
 	os.Stdout.Write([]byte(xml.Header))
 	os.Stdout.Write(output)
 	os.Stdout.Write([]byte("\n"))
+}
+
+func TestGoogleMvn(t *testing.T) {
+
+	p := "D:\\CodeDocument\\FridaHookCode\\testapp\\20200912新app\\maven-metadata.xml"
+	data, err := ioutil.ReadFile(p)
+	assert.Nil(t, err)
+	result := repos.MetaDataXML{}
+
+	if e := xml.Unmarshal(data, &result); e != nil {
+		log.Panic(e)
+	}
+	log.Printf("groupId =%v\n", result.GroupId)
+	log.Printf("artifactId =%v\n", result.ArteFaceId)
+	log.Printf("versioning =%v\n", result.VersioningData)
+
+	log.Printf("versioning.latest =%v\n", result.VersioningData.LastUpdated)
+	log.Printf("versioning.release =%v\n", result.VersioningData.RelaseVersion)
+	log.Printf("versions =%v\n", result.VersioningData.Versions)
+	log.Printf("versioning.lastUpdated =%v\n", result.VersioningData.LastUpdated)
+	// log.Printf("groupId =%v\n", result)
+
 }

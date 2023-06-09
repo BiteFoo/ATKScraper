@@ -14,11 +14,11 @@ libray-specs
 repo struct
 
 	"artefactid": "preference-ktx",
-	       "category": "Android",
-	       "comment": "",
-	       "groupid": "androidx.preference",
-	       "name": "androidx.preference::preference-ktx",
-	       "repo": "https://dl.google.com/dl/android/maven2"
+	"category": "Android",
+	"comment": "",
+	"groupid": "androidx.preference",
+	"name": "androidx.preference::preference-ktx",
+	"repo": "https://dl.google.com/dl/android/maven2"
 *
 */
 type RepoInfo struct {
@@ -31,9 +31,9 @@ type RepoInfo struct {
 }
 
 type Repo struct {
-	Repos   *RepoLibrary
+	repoMap map[string]RepoLibrary
 	Client  *download.DownloadClient
-	BaseUrl string
+	// BaseUrl string
 }
 
 // 下载保存信息

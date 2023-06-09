@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -43,7 +44,7 @@ type LibXmlTemplate struct {
 }
 
 const (
-	MAX_POOL = 10 //同时支持10个协程执行即可
+	MAX_POOL = 3 //同时支持3个协程执行即可
 )
 
 var (
@@ -60,15 +61,17 @@ func NewDownloader() *DownloadClient {
 func (client *DownloadClient) Run() {
 	//
 
+	// defer close(client.DownloadChans)
+
 	for i := 0; i < MAX_POOL; i++ {
 		client.Wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer client.Wg.Done()
+			gid := strconv.Itoa(i + 1)
 			for download := range client.DownloadChans {
-				//client.Wg.Add(1)
-				go saveFile(download)
+				saveFile(gid, download)
 			}
-		}()
+		}(i)
 	}
 }
 
@@ -78,9 +81,24 @@ func (c *DownloadClient) Submit(info DownloadInfo) {
 
 func (c *DownloadClient) Wait() {
 	c.Wg.Wait() //等待结束
+
+	close(c.DownloadChans)
+	close(logChan)
 }
 
-func saveFile(info DownloadInfo) {
+func runReq(url string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		logChan <- fmt.Sprintf("请求失败error :%v\n", err)
+		return nil, err
+	}
+	return http.DefaultClient.Do(req)
+
+}
+
+// gid =: goroutine id
+// info = download info 下载文件信息
+func saveFile(gid string, info DownloadInfo) {
 	// defer wg.Done()
 
 	save := info.SaveRoot + string(filepath.Separator) + info.LibVersion
@@ -94,23 +112,31 @@ func saveFile(info DownloadInfo) {
 	saveFile := save + string(filepath.Separator) + info.FileName
 	if utils.IsFile(saveFile) {
 		//存在的情况下就不要处理了
-		log.Println("文件已经存在 " + saveFile)
+		// log.Println("文件已经存在 " + saveFile)
 		return
 	}
 
-	req, err := http.NewRequest("GET", info.DownloadURL, nil)
-	if err != nil {
-		logChan <- fmt.Sprintf("请求失败error :%v\n", err)
-		return
-	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := runReq(info.DownloadURL)
 	if err != nil {
 		logChan <- fmt.Sprintf("error download failed. %v\n", err)
 		return
 	}
-	if resp.StatusCode != http.StatusOK {
-		logChan <- fmt.Sprintf("download error : %v\n", resp.StatusCode)
-		return
+
+	if resp.StatusCode == http.StatusNotFound {
+		//404可能是是要替换为jar来下载
+		url := strings.Replace(info.DownloadURL, ".aar", ".jar", -1)
+		log.Println("尝试替换url下载为 jar   url = ", url)
+		resp, err = runReq(url)
+		// return
+		if err != nil {
+			logChan <- fmt.Sprintf("error download failed. %v\n", err)
+
+			return
+		}
+		if resp.StatusCode != http.StatusOK {
+			logChan <- fmt.Sprintf("goroutine: %v download error : %v libName =%v\n", gid, resp.StatusCode, info.LibName)
+			return
+		}
 	}
 
 	defer resp.Body.Close()
@@ -158,10 +184,11 @@ func saveFile(info DownloadInfo) {
 		logChan <- fmt.Sprintf("encode xml内容erro : %v libname: %v\n", err, info.LibName)
 		return
 	}
+	// log.Println(":-> save ", saveFile)
 	descrition.Write([]byte(xml.Header))
 	descrition.Write(xmlContent)
 	descrition.Write([]byte("\n"))
-	logChan <- fmt.Sprintf("download  %s version: %s writeBytes:%v success\n", info.LibName, info.LibVersion, cnt)
+	logChan <- fmt.Sprintf("goroutine : %v download  %s version: %s writeBytes:%v success\n", gid, info.LibName, info.LibVersion, cnt)
 
 }
 
@@ -174,6 +201,6 @@ func PrintLog() {
 		if strings.Contains(logInfo, "error") {
 			color = red
 		}
-		log.Printf(color+"-> %s\n"+reset, logInfo)
+		log.Printf(color+"-> %s"+reset, logInfo)
 	}
 }

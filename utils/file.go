@@ -71,5 +71,5 @@ func GenLibSpecPath(name string) string {
 	// -- *** --
 	// -- *** --
 	// -- *** --
-	return GetPwd() + string(filepath.Separator) + "library-specs" + string(filepath.Separator) + name + "-libraries.json"
+	return GetPwd() + string(filepath.Separator) + "library-specs" + string(filepath.Separator) + name
 }
